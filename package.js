@@ -9,8 +9,8 @@ Package.describe({
 Package.registerBuildPlugin({
   name: 'compileScssBatch',
   use: [
-    'caching-compiler@2.0.0',
-    'ecmascript@0.16.9'
+    'caching-compiler@1.2.2',
+    'ecmascript@0.16.3'
   ],
   sources: ['plugin/compile-scss.js'],
   npmDependencies: {
@@ -20,12 +20,12 @@ Package.registerBuildPlugin({
 });
 
 Package.onUse(api => {
-  api.versionsFrom('3.0.1');
+  api.versionsFrom('2.8.0');
   api.use('isobuild:compiler-plugin@1.0.0');
 });
 
 Package.onTest(api => {
-  api.versionsFrom('3.0.1');
+  api.versionsFrom('2.8.0');
   api.use([
     'test-helpers', 'tinytest',
     'ecmascript',
