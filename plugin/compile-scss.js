@@ -1,361 +1,303 @@
-import sass from 'node-sass';
-import { promisify } from 'util';
-const path = Plugin.path;
-const fs = Plugin.fs;
+import { MultiFileCachingCompiler } from 'meteor/caching-compiler';
 
-const compileSass = promisify(sass.render);
-const { includePaths } = _getConfig('scss-config.json');
-const _includePaths = Array.isArray(includePaths) ? includePaths : [];
+//import sass from 'sass-embedded';
+import sass from 'sass';
+
+import { pathToFileURL } from 'url';
+const { fs, path } = Plugin;
+
+const { env:{ DEBUG_PACKAGE_SASS } } = process;
+const debugMode = !!(DEBUG_PACKAGE_SASS && !(DEBUG_PACKAGE_SASS === 'false' || DEBUG_PACKAGE_SASS === '0'));
+
+const userOptions = _getConfig(
+  '.scss.config.json',
+  'scss-config.json', // legacy
+);
 
 Plugin.registerCompiler({
   extensions: ['scss', 'sass'],
   archMatching: 'web'
-}, () => new SassCompiler());
-
-const convertToStandardPath = function convertToStandardPath(osPath) {
-  if (process.platform === "win32") {
-    // return toPosixPath(osPath, partialPath);
-    // p = osPath;
-    // Sometimes, you can have a path like \Users\IEUser on windows, and this
-    // actually means you want C:\Users\IEUser
-    if (osPath[0] === "\\") {
-      osPath = process.env.SystemDrive + osPath;
-    }
-
-    osPath = osPath.replace(/\\/g, '/');
-    if (osPath[1] === ':') {
-      // transform "C:/bla/bla" to "/c/bla/bla"
-      osPath = `/${osPath[0]}${osPath.slice(2)}`;
-    }
-
-    return osPath;
-  }
-
-  return osPath;
-}
-
-const rootDir = convertToStandardPath((process.env.PWD || process.cwd()) + "/");
+}, () => new SassCompiler())
 
 // CompileResult is {css, sourceMap}.
 class SassCompiler extends MultiFileCachingCompiler {
   constructor() {
     super({
       compilerName: 'sass',
-      defaultCacheSize: 1024*1024*10,
-    });
+      defaultCacheSize: 1024 * 1024 * 10
+    })
   }
-
   getCacheKey(inputFile) {
     return inputFile.getSourceHash();
   }
-
   compileResultSize(compileResult) {
-    return compileResult.css.length +
-      this.sourceMapSize(compileResult.sourceMap);
+    return compileResult.css?.length +
+      this.sourceMapSize(compileResult.sourceMap)
   }
 
-  // The heuristic is that a file is an import (ie, is not itself processed as a
-  // root) if it matches _*.sass, _*.scss
-  // This can be overridden in either direction via an explicit
-  // `isImport` file option in api.addFiles.
+  // The heuristic is that a file is an import (ie, is not itself processed as a root) if it matches _*.sass, _*.scss
+  // This can be overridden in either direction via an explicit `isImport` file option in api.addFiles.
   isRoot(inputFile) {
+    /*
+    if(inputFile.isPackageFile()) {
+      return false;
+    }
+    */
     const fileOptions = inputFile.getFileOptions();
-
-    if (fileOptions.hasOwnProperty('isImport')) {
+    if(fileOptions.hasOwnProperty('isImport')) {
       return !fileOptions.isImport;
     }
-
     const pathInPackage = inputFile.getPathInPackage();
-    return !this.hasUnderscore(pathInPackage);
-  }
+    const isPartial = hasUnderscore(pathInPackage);
 
-  hasUnderscore(file) {
-    return path.basename(file).startsWith('_');
+    return !isPartial;
   }
 
   compileOneFileLater(inputFile, getResult) {
     inputFile.addStylesheet({
-      path: inputFile.getPathInPackage(),
+      path: inputFile.getPathInPackage()
     }, async () => {
       const result = await getResult();
       return result && {
         data: result.css,
-        sourceMap: result.sourceMap,
-        };
-    });
+        sourceMap: result.sourceMap
+      }
+    })
   }
 
   async compileOneFile(inputFile, allFiles) {
-    const referencedImportPaths = [];
-
-    var totalImportPath = [];
-    var sourceMapPaths = [`.${inputFile.getDisplayPath()}`];
-
-    const addUnderscore = (file) => {
-      if (!this.hasUnderscore(file)) {
-        file = path.join(path.dirname(file), `_${path.basename(file)}`);
-      }
-      return file;
+    const sourceRoot = inputFile.getSourceRoot();
+    const allFilesByPath = new Map();
+    for(const [absoluteImportPath, file] of allFiles.entries()) {
+      const absolutePath = path.join(file.getSourceRoot(), file.getPathInPackage());
+      allFilesByPath.set(absolutePath, absoluteImportPath);
     }
 
-    const getRealImportPath = (importPath) => {
-      const isAbsolute = importPath.startsWith('/');
+    const getRealImportPath = (url) => {
+      const basename = decodeURIComponent(url);
+
+      let importPath;
+      switch(true) {
+        case basename.search(/~[^\/]/) !== -1:
+          importPath = basename.replace(/^.*~([^\/])/, '{}/node_modules/$1');
+          break;
+        case basename.search(/^meteor[:\/]/) !== -1:
+          importPath = basename.replace(/^meteor[:\/]/, '');
+          break;
+        case basename.search(/^\/[^\/]/) !== -1:
+          importPath = basename.replace(/^\//, '{}/');
+          break;
+        default:
+          importPath = basename;
+          break;
+      }
 
       //SASS has a whole range of possible import files from one import statement, try each of them
       const possibleFiles = [];
+      const possibleFilesIndex = [];
 
       //If the referenced file has no extension, try possible extensions, starting with extension of the parent file.
       let possibleExtensions = ['scss','sass','css'];
 
-      if(! importPath.match(/\.s?(a|c)ss$/)){
+      if(!importPath.match(/\.s?(a|c)ss$/)){
         possibleExtensions = [
           inputFile.getExtension(),
           ...possibleExtensions.filter(e => e !== inputFile.getExtension())
           ]
         for (const extension of possibleExtensions){
           possibleFiles.push(`${importPath}.${extension}`);
+          possibleFilesIndex.push(`${importPath}/index.${extension}`)
+          possibleFilesIndex.push(`${importPath}/_index.${extension}`)
         }
-      }else{
+      } else {
         possibleFiles.push(importPath);
       }
 
       //Try files prefixed with underscore
-      for (const possibleFile of possibleFiles) {
-        if (! this.hasUnderscore(possibleFile)) {
-          possibleFiles.push(addUnderscore(possibleFile));
+      for(const possibleFile of possibleFiles) {
+        if(!hasUnderscore(possibleFile)) {
+          possibleFiles.push(
+            path.join(path.dirname(possibleFile), `_${path.basename(possibleFile)}`)
+          );
         }
       }
 
       //Try if one of the possible files exists
-      for (const possibleFile of possibleFiles) {
-        if ((isAbsolute && fileExists(possibleFile)) || (!isAbsolute && allFiles.has(possibleFile))) {
-            return { absolute: isAbsolute, path: possibleFile };
+      for(const possibleFile of possibleFiles.concat(possibleFilesIndex)) {
+        const file = allFiles.get(possibleFile);
+        if(file) {
+          return path.join(file.getSourceRoot(), file.getPathInPackage());
+        }
+        if(fileExists(possibleFile)) {
+          return possibleFile;
+        }
+        const possibleFileFullPath = path.join(sourceRoot, possibleFile.replace(/^\{\}\//, ''));
+        if(fileExists(possibleFileFullPath)) {
+          return possibleFileFullPath;
         }
       }
       //Nothing found...
       return null;
-
     };
 
+    const findFileUrl = (url, ctx) => {
+      // Later if we need to know the parent file
+      //const sourcePath = ctx?.containingUrl?.pathname;
+      //const parentPath = allFilesByPath.get(sourcePath) || sourcePath;
+      //const prev = allFiles.get(allFilesByPath.get(sourcePath));
 
-    const fixTilde = function(thePath) {
-      let newPath = thePath;
-      // replace ~ with {}/....
-      if (newPath.startsWith('~')) {
-        newPath = newPath.replace('~', '{}/node_modules/');
+      const importPath = getRealImportPath(url);
+      if(importPath) {
+        return pathToFileURL(importPath);
       }
-
-      // add {}/ if starts with node_modules
-      if (!newPath.startsWith('{')) {
-        if (newPath.startsWith('node_modules')) {
-          newPath = '{}/' + newPath;
-        }
-        if (newPath.startsWith('/node_modules')) {
-          newPath = '{}' + newPath;
-        }
-      }
-
-      return newPath;
-    }
-
-    //Handle import statements found by the sass compiler, used to handle cross-package imports
-    const importer = function(url, prev, done) {
-      prev = convertToStandardPath(prev);
-      prev = fixTilde(prev);
-      if (!totalImportPath.length) {
-        totalImportPath.push(prev);
-      }
-
-      if (prev !== undefined) {
-
-        // iterate backwards over totalImportPath and remove paths that don't equal the prev url
-        for (let i = totalImportPath.length - 1; i >= 0; i--) {
-
-          // check if importPath contains prev, if it doesn't, remove it. Up until we find a path that does contain it
-          if (totalImportPath[i] == prev) {
-            break
-          } else {
-            // remove last item (which has to be item i because we are iterating backwards)
-            totalImportPath.splice(i,1)
-          }
-        }
-
-      }
-      let importPath = convertToStandardPath(url);
-      importPath = fixTilde(importPath);
-      for (let i = totalImportPath.length - 1; i >= 0; i--) {
-        if (importPath.startsWith('/') || importPath.startsWith('{')) {
-          break;
-        }
-        // 'path' is the nodejs path module
-        importPath = path.join(path.dirname(totalImportPath[i]),importPath);
-      }
-
-      let accPosition = importPath.indexOf('{');
-      if (accPosition > -1) {
-        importPath = importPath.substr(accPosition,importPath.length);
-      }
-
-      // TODO: This fix works.. BUT if you edit the scss/css file it doesn't recompile! Probably because of the absolute path problem
-      if (importPath.startsWith('{')) {
-        // replace {}/node_modules/ for rootDir + "node_modules/"
-        importPath = importPath.replace(/^(\{\}\/node_modules\/)/, rootDir + "node_modules/");
-        // importPath = importPath.replace('{}/node_modules/', rootDir + "node_modules/");
-        if (importPath.endsWith('.css')) {
-          // .css files aren't in allFiles. Replace {}/ for absolute path.
-          importPath = importPath.replace(/^(\{\}\/)/, rootDir)
-        }
-      }
-
-      try {
-        let parsed = getRealImportPath(importPath);
-        if (!parsed) {
-          parsed = _getRealImportPathFromIncludes(url, getRealImportPath);
-        }
-        if (!parsed) {
-          //Nothing found...
-          throw new Error(`File to import: ${url} not found in file: ${totalImportPath[totalImportPath.length - 2]}`);
-        }
-        totalImportPath.push(parsed.path);
-
-        if (parsed.absolute) {
-          sourceMapPaths.push(parsed.path);
-          done({ contents: fs.readFileSync(parsed.path, 'utf8'), file: parsed.path});
-
-        } else {
-          referencedImportPaths.push(parsed.path);
-          sourceMapPaths.push(decodeFilePath(parsed.path));
-          done({ contents: allFiles.get(parsed.path).getContentsAsString(), file: parsed.path});
-        }
-      } catch (e) {
-        return done(e);
-      }
-
-    }
-
-    //Start compile sass (async)
-    const options = {
-      sourceMap: true,
-      sourceMapContents: true,
-      sourceMapEmbed: false,
-      sourceComments: false,
-      omitSourceMapUrl: true,
-      sourceMapRoot: '.',
-      indentedSyntax : inputFile.getExtension() === 'sass',
-      outFile: `.${inputFile.getBasename()}`,
-      importer,
-      includePaths: [],
-      precision: 10,
-    };
-
-    options.file = this.getAbsoluteImportPath(inputFile);
-
-    options.data = inputFile.getContentsAsBuffer().toString('utf8');
-
-    //If the file is empty, options.data is an empty string
-    // In that case options.file will be used by node-sass,
-    // which it can not read since it will contain a meteor package or app reference '{}'
-    // This is one workaround, another one would be to not set options.file, in which case the importer 'prev' will be 'stdin'
-    // However, this would result in problems if a file named stdín.scss would exist.
-    // Not the most elegant of solutions, but it works.
-    if (!options.data.trim()) {
-      options.data = '$fakevariable_ae7bslvbp2yqlfba : blue;';
-    }
-
-    let output;
-    try {
-      output = await compileSass(options);
-    } catch (e) {
-      inputFile.error({
-        message: `Scss compiler error: ${e.formatted}\n`,
-        sourcePath: inputFile.getDisplayPath()
-      });
       return null;
     }
-    //End compile sass
 
-    //Start fix sourcemap references
-    if (output.map) {
-      const map = JSON.parse(output.map.toString('utf-8'));
-      map.sources = sourceMapPaths;
-      output.map = map;
+    // Start compile sass (async)
+    // https://sass-lang.com/documentation/js-api/interfaces/options/
+    const options = {
+      sourceMap: true,
+      sourceMapIncludeSources: true,
+      importers: [{findFileUrl}],
+
+      // if dev mode, use expanded style, otherwise use compressed, or set in config file
+      //style: isDev ? 'expanded' : 'compressed',
+      style: 'expanded',
+
+      quietDeps: true,
+      verbose: false,
     }
-    //End fix sourcemap references
 
-    const compileResult = { css: output.css.toString('utf-8'), sourceMap: output.map };
-    return { compileResult, referencedImportPaths };
+    if(userOptions?.hasOwnProperty) {
+      if(userOptions.hasOwnProperty('loadPaths')) {
+        //options.loadPaths = userOptions.loadPaths;
+      }
+      if(userOptions.hasOwnProperty('silenceDeprecations')) {
+        //options.silenceDeprecations = userOptions.silenceDeprecations;
+      }
+      if(userOptions.hasOwnProperty('quietDeps')) {
+        options.quietDeps = userOptions.quietDeps;
+      }
+      if(userOptions.hasOwnProperty('verbose')) {
+        options.verbose = userOptions.verbose;
+      }
+    }
+
+    // Compile
+    let output;
+    try {
+      output = await sass.compileAsync(inputFile.getPathInPackage(), options);
+    } catch(e) {
+      inputFile.error({
+        message: `Scss compiler ${e}\n`,
+        sourcePath: inputFile.getDisplayPath()
+      });
+      if(debugMode) {
+        console.error(e);
+      }
+      return null;
+    }
+
+    // Get all referenced files for watcher
+    const referencedImportPaths = [];
+    if(output?.loadedUrls && output.loadedUrls.length > 0) {
+      const skippedImportPaths = [];
+      for(const loadedUrl of output.loadedUrls) {
+        const referencedImportPath = allFilesByPath.get(loadedUrl.pathname);
+        if(referencedImportPath) {
+          referencedImportPaths.push(referencedImportPath);
+        } else {
+          skippedImportPaths.push(loadedUrl.pathname);
+        }
+      }
+      if(skippedImportPaths.length) {
+        console.warn(`[ SASS Compiler ] The following external files were loaded but are not tracked by the project:\n - ${skippedImportPaths.join('\n - ')}`);
+      }
+    }
+
+    // Fix source map
+    const sourceMap = output?.sourceMap || null;
+    if(sourceMap) {
+      //sourceMap.sourceRoot = '.';
+      const sourceRoot = inputFile.getSourceRoot();
+      const entryFileDisplayPath = inputFile.getDisplayPath();
+
+      sourceMap.sources = sourceMap.sources.map(src => {
+        let url;
+        try {
+          url = new URL(src);
+        } catch(e) {
+          return src;
+        }
+        switch(url?.protocol) {
+          case 'file:':
+            let srcPath = url.pathname.replace(new RegExp(`^${sourceRoot}/?`), '');
+
+            // this is an attempt at standard-minifier-css compatibility
+            //srcPath = (`app/${srcPath}`).replace('app//', 'app/');
+            //srcPath = path.normalize(`${entryFileDisplayPath.replace(/\//g,'-')}/${srcPath}`);
+            srcPath = path.normalize(`${entryFileDisplayPath}/${srcPath}`);
+
+            return srcPath;
+          default:
+            return src;
+        }
+      });
+    }
+
+    return {
+      compileResult: {
+        css: output.css?.toString('utf-8'),
+        sourceMap,
+      },
+      referencedImportPaths,
+    };
   }
 
   addCompileResult(inputFile, compileResult) {
     inputFile.addStylesheet({
       data: compileResult.css,
       path: `${inputFile.getPathInPackage()}.css`,
-      sourceMap: compileResult.sourceMap,
-    });
+      sourceMap: compileResult.sourceMap
+    })
   }
 }
 
-function _getRealImportPathFromIncludes(importPath, getRealImportPathFn){
-  let possibleFilePath, foundFile;
+// --------------------------------------------------------------------------------------------
 
-  for (let includePath of _includePaths) {
-    possibleFilePath = path.join(includePath, importPath);
-    foundFile = getRealImportPathFn(possibleFilePath);
+function _getConfig(...configFileNames) {
+  const appdir = process.env.PWD || process.cwd();
 
-    if (foundFile) {
-      return foundFile;
+  for(const configFileName of configFileNames) {
+    const configPath = path.join(appdir, configFileName);
+    if(fileExists(configPath)) {
+      try {
+        return JSON.parse(fs.readFileSync(configPath, {encoding: 'utf8'}));
+        break;
+      } catch(e) {
+        console.warn(`[ SASS Compiler ] Custom config ignored (${configFileName}):\n - ${e}`);
+        if(debugMode) {
+          console.error(e);
+        }
+        break;
+      }
     }
   }
-
-  return null;
 }
 
-/**
- * Build a path from current process working directory (i.e. meteor project
- * root) and specified file name, try to get the file and parse its content.
- * @param configFileName
- * @returns {{}}
- * @private
- */
-function _getConfig(configFileName) {
-  const appdir = process.env.PWD || process.cwd();
-  const custom_config_filename = path.join(appdir, configFileName);
-  let userConfig = {};
-
-  if (fileExists(custom_config_filename)) {
-    userConfig = fs.readFileSync(custom_config_filename, {
-      encoding: 'utf8'
-    });
-    userConfig = JSON.parse(userConfig);
-  } else {
-    //console.warn('Could not find configuration file at ' + custom_config_filename);
-  }
-  return userConfig;
-}
-
-function decodeFilePath (filePath) {
-  const match = filePath.match(/{(.*)}\/(.*)$/);
-  if (!match) {
-    throw new Error(`Failed to decode sass path: ${filePath}`);
-  }
-
-  if (match[1] === '') {
-    // app
-    return match[2];
-  }
-
-  return `packages/${match[1]}/${match[2]}`;
+function hasUnderscore(file) {
+  return path.basename(file).startsWith('_');
 }
 
 function fileExists(file) {
-  if (fs.statSync){
+  if(fs.statSync){
     try {
       fs.statSync(file);
-    } catch (e) {
+    } catch(e) {
       return false;
     }
     return true;
-  } else if (fs.existsSync) {
+  } else if(fs.existsSync) {
     return fs.existsSync(file);
   }
 }
