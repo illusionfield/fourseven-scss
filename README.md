@@ -22,8 +22,8 @@ Package.onUse(function (api) {
 
 ## Compatibility
 
-- This plugin is tested with Meteor 2.8 and later versions.
-- It is not compatible with Meteor 3.0.
+- This plugin has been verified to work with Meteor 2.8 and later.
+- It offers full compatibility with Meteor 3.
 - It uses the [Dart Sass](https://www.npmjs.com/package/sass) npm package, meaning it only works on systems supported by Dart Sass: Windows, Mac OS, and Linux.
 
 ## Usage
