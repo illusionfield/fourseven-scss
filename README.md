@@ -22,7 +22,7 @@ Package.onUse(function (api) {
 
 ## Compatibility
 
-- This plugin has been verified to work with Meteor 2.8 and later.
+- This plugin has been verified to work with Meteor 2.10 and later.
 - It offers full compatibility with Meteor 3.
 - It uses the [Dart Sass](https://www.npmjs.com/package/sass) npm package, meaning it only works on systems supported by Dart Sass: Windows, Mac OS, and Linux.
 
@@ -50,17 +50,27 @@ You can import styles from various locations, including other packages, your own
 - **Importing from another package**:
 
 ```scss
-@import "meteor:{my-package:pretty-buttons}/buttons/_styles.scss";
+@use "meteor:{my-package:pretty-buttons}/buttons/styles" as buttons; // Assigns a namespace "buttons"
 
 .my-button {
-  @extend .pretty-button; // Use styles imported from the package
+  @extend buttons.pretty-button; // Uses the imported class with its namespace
+}
+```
+
+or
+
+```scss
+@use "meteor:{my-package:pretty-buttons}/buttons/styles" as *; // Imports everything into the global scope
+
+.my-button {
+  @extend .pretty-button; // No namespace required
 }
 ```
 
 - **Importing from your app**:
 
 ```scss
-@import "{}/client/styles/imports/colors.scss";
+@use "{}/client/styles/imports/colors.scss" as *;
 
 .my-nav {
   background-color: @primary-branding-color; // Use a color from the app's style palette
@@ -70,7 +80,7 @@ You can import styles from various locations, including other packages, your own
 - **Importing from npm modules**:
 
 ```scss
-@import "~module-name/stylesheet";
+@use "~module-name/stylesheet"; // Imports a module from node_modules
 ```
 
 If the target is a directory, it will search for an `index.scss`, `_index.scss`, `index.sass`, or `_index.sass` file inside that directory.

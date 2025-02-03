@@ -7,8 +7,8 @@ Tinytest.add('sass/scss - imports', function(test) {
   const prefixes = ['scss'];
 
   try {
-    const t = function(className, style) {
-      prefixes.forEach(function(prefix){
+    const t = (className, style) => {
+      for(let prefix of prefixes){
         div.className = `${prefix}-${className}`;
 
         // Read 'border-top-style' instead of 'border-style' (which is set
@@ -16,7 +16,7 @@ Tinytest.add('sass/scss - imports', function(test) {
         // and can be retrieved. Trying to read the synthetic 'border-style'
         // gives an empty string.
         test.equal(getStyleProperty(div, 'border-top-style'), style,  div.className);
-      });
+      }
     };
 
     t('el1', 'dotted');
@@ -36,7 +36,8 @@ Tinytest.add('sass/scss - imports', function(test) {
 });
 
 /*
-// Test for includePaths (not implemented)
+// Test for includePath
+// (not implemented)
 Tinytest.add('sass/scss - import from includePaths', function(test) {
   const div = document.createElement('div');
   document.body.appendChild(div);
