@@ -14,7 +14,6 @@ Package.registerBuildPlugin({
   ],
   sources: ['plugin/compile-scss.js'],
   npmDependencies: {
-    '@babel/runtime': '7.26.0',
     'sass': '1.83.4'
   }
 });
