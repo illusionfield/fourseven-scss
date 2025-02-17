@@ -13,6 +13,15 @@ const userOptions = _getConfig(
   'scss-config.json', // legacy
 );
 
+let includePaths = [];
+
+if('object' === typeof userOptions) {
+  if(Array.isArray(userOptions.includePaths)) {
+    includePaths = userOptions.includePaths;
+  }
+  delete userOptions.includePaths;
+}
+
 Plugin.registerCompiler({
   extensions: ['scss', 'sass'],
   archMatching: 'web'
@@ -144,6 +153,17 @@ class SassCompiler extends MultiFileCachingCompiler {
       if(importPath) {
         return pathToFileURL(importPath);
       }
+
+      // Try include paths if not found
+      for(const includePath of includePaths) {
+        const basename = decodeURIComponent(url);
+        const extendedUrl = new URL(path.join(includePath, basename));
+        const importPath = getRealImportPath(extendedUrl);
+        if(importPath) {
+          return pathToFileURL(importPath);
+        }
+      }
+
       return null;
     }
 

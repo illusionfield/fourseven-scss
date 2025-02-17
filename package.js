@@ -46,8 +46,8 @@ Package.onTest(api => {
 
   api.addFiles('test/scss/top2.scss', 'client', { isImport: true });
 
-  // Test for includePaths (not implemented)
-  //api.addFiles(['test/include-paths/include-paths.scss', 'test/include-paths/modules/module/_module.scss']);
+  // Test for includePaths
+  api.addFiles(['test/include-paths/include-paths.scss', 'test/include-paths/modules/module/_module.scss']);
 
   api.mainModule('tests.js', 'client');
 });
