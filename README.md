@@ -1,5 +1,9 @@
 # Dart Sass for Meteor.js
 
+## Important Notice
+
+This is a major change—from LibSass to Dart Sass. Please read the [Migration Guide](MIGRATION-GUIDE.md) for detailed instructions before proceeding.
+
 This is a build plugin for Meteor.js that compiles Sass files using Dart Sass.
 
 ## Installation
@@ -22,9 +26,15 @@ Package.onUse(function (api) {
 
 ## Compatibility
 
-- This plugin has been verified to work with Meteor 2.10 and later.
-- It offers full compatibility with Meteor 3.
-- It uses the [Dart Sass](https://www.npmjs.com/package/sass) npm package, meaning it only works on systems supported by Dart Sass: Windows, Mac OS, and Linux.
+| Meteor Version | Recommended `fourseven:scss` version |
+| ---------------| ------------------------------------ |
+| 1.0 - 1.1      | 3.2.0                                |
+| 1.2 - 1.3.1    | 3.4.2                                |
+| 1.3.2+         | 3.8.0_1                              |
+| 1.4.0          | 3.8.1                                |
+| 1.4.1+         | 4.5.4                                |
+| 1.6+           | 4.12.0                               |
+| 2.10+          | 5.0.0                                |
 
 ## Usage
 
@@ -106,7 +116,10 @@ Example configuration:
 ```json
 {
   "quietDeps": true,
-  "verbose": false
+  "verbose": false,
+  "includePaths": [
+    "{}/some/very/long/path/for/holding/my/mixins/folder"
+  ]
 }
 ```
 
@@ -125,8 +138,3 @@ export DEBUG_PACKAGE_SASS=true
 ```
 
 This can be helpful for troubleshooting issues during compilation.
-
-## Limitations
-
-- Currently, this plugin only supports platforms compatible with Dart Sass (Windows, Mac OS, Linux).
-- There is no global include path setting, though this may be added in the future if requested.
