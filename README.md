@@ -1,6 +1,12 @@
 # Dart Sass for Meteor.js
 
+## Important Notice
+
+This is a major change—from LibSass to Dart Sass. Please read the [Migration Guide](MIGRATION-GUIDE.md) for detailed instructions before proceeding.
+
 This is a build plugin for Meteor.js that compiles Sass files using Dart Sass.
+
+
 
 ## Installation
 
@@ -125,8 +131,3 @@ export DEBUG_PACKAGE_SASS=true
 ```
 
 This can be helpful for troubleshooting issues during compilation.
-
-## Limitations
-
-- Currently, this plugin only supports platforms compatible with Dart Sass (Windows, Mac OS, Linux).
-- There is no global include path setting, though this may be added in the future if requested.
