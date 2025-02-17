@@ -37,13 +37,18 @@ class SassCompiler extends MultiFileCachingCompiler {
   // The heuristic is that a file is an import (ie, is not itself processed as a root) if it matches _*.sass, _*.scss
   // This can be overridden in either direction via an explicit `isImport` file option in api.addFiles.
   isRoot(inputFile) {
+    // If the file is explicitly marked as an import, then it is not a root.
     const fileOptions = inputFile.getFileOptions();
     if(fileOptions.hasOwnProperty('isImport')) {
       return !fileOptions.isImport;
     }
+    // If the input file is a package file, it is not a root.
+    if(inputFile.isPackageFile()) {
+      return false;
+    }
+    // If the file is a partial (leading underscore), it is not a root.
     const pathInPackage = inputFile.getPathInPackage();
     const isPartial = hasUnderscore(pathInPackage);
-
     return !isPartial;
   }
 
