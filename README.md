@@ -1,16 +1,17 @@
 # Dart Sass for Meteor.js
 
-## Important Notice
-
-This is a major change—from LibSass to Dart Sass. Please read the [Migration Guide](MIGRATION-GUIDE.md) for detailed instructions before proceeding.
-
 This is a build plugin for Meteor.js that compiles Sass files using Dart Sass.
+
+## Before you begin
+
+> [!IMPORTANT]
+> In `v5.0.0` this package has introduced a major change — migrating underlying library `LibSass` to `Dart Sass`. If you are updating an existing project from an earlier version of this plugin to `5.0.0`, be sure to read the [Migration Guide](https://github.com/illusionfield/fourseven-scss/blob/master/MIGRATION-GUIDE-v5.md), as this documentation does not cover all required migration steps.
 
 ## Installation
 
 Install the package using Meteor's package management system:
 
-```bash
+```sh
 meteor add fourseven:scss
 ```
 
@@ -38,9 +39,12 @@ Package.onUse(function (api) {
 
 ## Usage
 
-After installation, this package automatically finds all `.scss` and `.sass` files in your project, compiles them with [Dart Sass](https://www.npmjs.com/package/sass), and includes the resulting CSS in the application's client bundle. These files can be located anywhere in your project.
+After installation, this package automatically finds all `.scss` and `.sass` files in your project,
+compiles them with [Dart Sass](https://www.npmjs.com/package/sass),
+and includes the resulting CSS in the application's client bundle.
+These files can be located anywhere in your project.
 
-### File Types
+### File types
 
 There are two main types of Sass files handled by this package:
 
@@ -57,7 +61,7 @@ Each compiled source file generates a separate CSS file, which is then merged in
 
 You can import styles from various locations, including other packages, your own app, and npm modules.
 
-- **Importing from another package**:
+#### Importing from another package
 
 ```scss
 @use "meteor:{my-package:pretty-buttons}/buttons/styles" as buttons; // Assigns a namespace "buttons"
@@ -77,7 +81,7 @@ or
 }
 ```
 
-- **Importing from your app**:
+#### Importing from your app
 
 ```scss
 @use "{}/client/styles/imports/colors.scss" as *;
@@ -87,31 +91,41 @@ or
 }
 ```
 
-- **Importing from npm modules**:
+#### Importing from npm modules
 
 ```scss
 @use "~module-name/stylesheet"; // Imports a module from node_modules
 ```
 
-If the target is a directory, it will search for an `index.scss`, `_index.scss`, `index.sass`, or `_index.sass` file inside that directory.
+> [!TIP]
+> If the target is a directory, it will search for an `index.scss`, `_index.scss`, `index.sass`, or `_index.sass` file inside that directory.
 
-### Global Include Path
+### Custom configuration
 
-At the moment, there is no support for a global include path. If there is significant demand, this feature could be added in future updates.
+You can customize the behavior of the Sass compiler by creating a `.scss.config.json` file in the root of your project.
 
-### Source Maps
+#### Sass compile options
 
-Source maps are enabled by default, helping with debugging by mapping the compiled CSS back to the original Sass files.
+Currently, this file supports only the `quietDeps` and `verbose` options, but more options will be available in the future.
+Learn more about the available options in the [Sass compiler options](https://sass-lang.com/documentation/js-api/interfaces/options).
 
-### Autoprefixer
+#### Global include path
 
-To use Autoprefixer, follow the official [PostCSS with Meteor](https://docs.meteor.com/packages/standard-minifier-css.html#standard-minifier-css) documentation.
+When working with long and complex project structures,
+specifying the full path to a (e.g. mixin) library in every SCSS file can be cumbersome.
+Configuring a global `includePaths` option allows you to define shorter, more maintainable import paths.
 
-## Custom Configuration
+Additionally, if the directory structure of the libraries changes,
+you only need to update the configuration file once instead of modifying multiple SCSS files.
 
-You can customize the behavior of the Sass compiler by creating a `.scss.config.json` or `scss-config.json` file in the root of your project. This file supports options like `quietDeps`, `verbose`, and others that control Sass compilation behavior.
+```scss
+@use "mixins"; // This file is actually placed in another directory!
+```
 
-Example configuration:
+> [!NOTE]
+> This plugin does not use [Sass’s built-in loadPaths](https://sass-lang.com/documentation/js-api/interfaces/options/#loadPaths) option.Instead, it implements a custom method tailored to the Meteor environment, ensuring seamless integration with Meteor’s build system and package resolution.
+
+#### Example configuration
 
 ```json
 {
@@ -123,17 +137,27 @@ Example configuration:
 }
 ```
 
-## Additional Features
+### Source maps
 
-- **Caching**: The plugin utilizes a caching system to speed up the compilation of Sass files. The default cache size is set to 10 MB.
-- **Import Handling**: When importing Sass files, it attempts to resolve various file extensions (`.scss`, `.sass`, `.css`) and also supports imports from `node_modules` using the `~` syntax.
-- **Partial File Recognition**: Files with an underscore (`_`) prefix are treated as partials and are not compiled into standalone CSS files unless explicitly requested.
+These are on by default.
 
-### Debug Mode
+### Autoprefixer
 
-You can enable debug mode by setting the `DEBUG_PACKAGE_SASS` environment variable to any value other than `false` or `0`. In debug mode, additional error messages and stack traces will be logged to the console.
+In Meteor projects compatible with version `5.0.0` of this plugin (see [compatibility table](#compatibility)), prefixes are supported via PostCSS.
 
-```bash
+```sh
+meteor add standard-minifier-css
+meteor npm install --save-dev autoprefixer postcss postcss-load-config
+```
+
+Learn more about [`standard-minifier-css` setup in its docs](https://docs.meteor.com/packages/standard-minifier-css.html)
+
+## Debug mode for Development and Troubleshooting
+
+You can enable debug mode by setting the `DEBUG_PACKAGE_SASS` environment variable to any value other than `false` or `0`.
+In debug mode, additional error messages and stack traces will be logged to the console, providing more detailed error logs.
+
+```sh
 export DEBUG_PACKAGE_SASS=true
 ```
 
