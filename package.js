@@ -14,7 +14,7 @@ Package.registerBuildPlugin({
   ],
   sources: ['plugin/compile-scss.js'],
   npmDependencies: {
-    'sass': '1.83.4'
+    'sass': '1.85.1'
   }
 });
 
