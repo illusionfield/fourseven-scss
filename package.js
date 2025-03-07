@@ -26,10 +26,11 @@ Package.onUse(api => {
 Package.onTest(api => {
   api.versionsFrom(['2.10.0', '3.0.1']);
   api.use([
-    'test-helpers', 'tinytest',
+    'tinytest',
     'ecmascript',
     'fourseven:scss'
   ]);
+  api.use(['jquery'], 'client');
 
   // Tests for .scss
   api.addFiles([
