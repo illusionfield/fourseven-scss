@@ -1,6 +1,6 @@
 Package.describe({
   name: 'fourseven:scss',
-  version: '5.0.0-alpha.3',
+  version: '5.0.0-beta.1',
   summary: 'Style with attitude. Sass and SCSS support for Meteor.js.',
   git: 'https://github.com/Meteor-Community-Packages/meteor-scss.git',
   documentation: 'README.md'
