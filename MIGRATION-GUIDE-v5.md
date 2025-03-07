@@ -1,4 +1,4 @@
-# Meteor SCSS Migration Guide
+# Meteor SCSS Migration Guide v5
 
 The latest version of the `fourseven:scss` package includes significant changes compared to the previous node-sass implementation.
 It now uses Dart Sass for compilation, which is modern, faster, and officially supported by the Sass community.
@@ -14,9 +14,9 @@ This guide provides a step-by-step process to help developers transition smoothl
 ## Table of contents
 
 - Step 1: [Update the fourseven:scss package](#update-the-foursevenscss-package)
-- Step 3: [Install and use NPM packages for autoprefixing](#installing-and-configuring-new-autoprefixer)
-- Step 4: [Change @imports to @use and @forward](#change-imports-to-use-and-forward)
-- Step 6: [Update configuration file](#update-configuration-file)
+- Step 2: [Install and use NPM packages for autoprefixing](#installing-and-configuring-new-autoprefixer)
+- Step 3: [Change @imports to @use and @forward](#change-imports-to-use-and-forward)
+- Step 4: [Update configuration file](#update-configuration-file)
 
 ## Migration steps
 
