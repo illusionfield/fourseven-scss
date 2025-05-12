@@ -7,6 +7,10 @@ on:
       - feature/*
       - release/*
   pull_request:
+    branches:
+      - master
+      - feature/*
+      - release/*
 
 jobs:
   tests:
