@@ -1,7 +1,5 @@
 import { MultiFileCachingCompiler } from 'meteor/caching-compiler';
 
-import sass from 'sass';
-
 import { pathToFileURL } from 'url';
 const { fs, path } = Plugin;
 
@@ -20,6 +18,98 @@ if('object' === typeof userOptions) {
   }
   delete userOptions.includePaths;
 }
+
+/**
+ * Determines the appropriate require function based on the current execution context.
+ *
+ * In test environments (when global.testCommandMetadata is truthy),
+ * a custom require function produced by requireFromCwdFactory() is used. This ensures that
+ * dependencies—such as the Sass compiler—are loaded from the project's node_modules directory
+ * rather than from the package/plugin directory. This is necessary because during testing,
+ * the package might not bundle its own dependencies, and using the project's node_modules
+ * avoids module resolution issues.
+ *
+ * In non-test environments, the standard Node.js require function is used.
+ */
+let requireFn;
+const isTest = !!global.testCommandMetadata;
+if(isTest) {
+  requireFn = requireFromCwdFactory();
+} else {
+  requireFn = require;
+}
+
+function getSass() {
+  const currentNode = process.version.slice(1);
+
+  let sass;
+  let sassType;
+  let isErr = false;
+  let requiredNode;
+
+  try {
+    const _sassType = 'sass';
+    requiredNode = getNodeEngineRequirement(_sassType);
+    sassType = _sassType;
+    sass = requireFn(_sassType);
+  } catch(e) {
+    if(debugMode) {
+      console.error(`${e}`);
+    }
+    isErr = true;
+  }
+  if(isErr) {
+    try {
+      isErr = false;
+      const _sassType = 'sass-embedded';
+      requiredNode = getNodeEngineRequirement(_sassType);
+      sassType = _sassType;
+      sass = requireFn(_sassType);
+    } catch(e) {
+      if(debugMode) {
+        console.error(`${e}`);
+      }
+      isErr = true;
+    }
+  }
+
+  if(requiredNode && !satisfies(requiredNode, currentNode)) {
+    const err = new Error([
+      '','',
+      `🚨 [SASS Compiler] Unsupported Node.js version!`,
+      `   Required: ${requiredNode}`,
+      `   Current:  ${currentNode}`,
+      `   Compiler: ${sassType}`,
+      `Please switch to a compatible Compiler version.`,
+      '',
+    ].join('\n'));
+
+    return [err, null];
+  }
+
+  if(isErr) {
+    const err = new Error([
+      '',
+      `The sass npm package could not be found in your node_modules`,
+      'directory. Please run the following command to install it:',
+      '',
+      '    meteor npm install --save-dev sass',
+      'or',
+      '    meteor npm install --save-dev sass-embedded',
+      '',
+    ].join('\n'));
+
+    return [err, null];
+  }
+
+  if(debugMode) {
+    console.log(`[SASS Compiler] ${sassType} selected - Node.js version ${currentNode} satisfies the required version constraint (${requiredNode}).`);
+  }
+
+  return [null, sass];
+}
+
+const [missingSassError, sass] = getSass();
 
 Plugin.registerCompiler({
   extensions: ['scss', 'sass'],
@@ -201,6 +291,9 @@ class SassCompiler extends MultiFileCachingCompiler {
     // Compile
     let output;
     try {
+      if(missingSassError) {
+        throw missingSassError;
+      }
       let filePath = inputFile.getPathInPackage();
       if(inputFile.getPackageName()) {
         filePath = `${inputFile.getSourceRoot()}/${filePath}`;
@@ -323,9 +416,55 @@ function fileExists(file) {
   }
 }
 
+function requireFromCwdFactory() {
+  const { createRequire } = require('module');
+  return createRequire(path.join(process.cwd(), 'noop.js'));
+}
+
+function getNodeEngineRequirement(pkgName) {
+  const pkgPath = path.join(process.cwd(), 'node_modules', pkgName, 'package.json');
+  if(!fileExists(pkgPath)) {
+    throw new Error(`Package ${pkgName} not found in node_modules`);
+  }
+  const pkgJson = JSON.parse(fs.readFileSync(pkgPath, 'utf-8'));
+  return pkgJson.engines?.node || null;
+}
+
 function convertToStandardPath(osPath) {
   if(process.platform === "win32") {
     return osPath.split(':').join('');
   }
   return osPath;
+}
+
+function satisfies(minVersion, currentVersion) {
+  if(minVersion.startsWith('>=')) {
+    return versionCompare(currentVersion, minVersion.slice(2)) >= 0;
+  } else if(minVersion.startsWith('>')) {
+    return versionCompare(currentVersion, minVersion.slice(1)) > 0;
+  } else if(minVersion.startsWith('<=')) {
+    return versionCompare(currentVersion, minVersion.slice(2)) <= 0;
+  } else if(minVersion.startsWith('<')) {
+    return versionCompare(currentVersion, minVersion.slice(1)) < 0;
+  } else if(minVersion.startsWith('=')) {
+    return versionCompare(currentVersion, minVersion.slice(1)) === 0;
+  } else {
+    // implicit "="
+    return versionCompare(currentVersion, minVersion) === 0;
+  }
+}
+
+function versionCompare(v1, v2) {
+  const toNum = v => v.split('.').map(Number);
+  const [a1, a2] = [toNum(v1), toNum(v2)];
+  const len = Math.max(a1.length, a2.length);
+
+  for(let i = 0; i < len; i++) {
+    const num1 = a1[i] ?? 0;
+    const num2 = a2[i] ?? 0;
+
+    if(num1 > num2) return 1;
+    if(num1 < num2) return -1;
+  }
+  return 0;
 }

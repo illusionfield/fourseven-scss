@@ -6,6 +6,7 @@
     "test:browser": "meteor test-packages ./ --port 8888"
   },
   "devDependencies": {
-    "@zodern/mtest": "^0.5.1"
+    "@zodern/mtest": "^0.5.1",
+    "sass": "1.79.6"
   }
 }
