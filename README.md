@@ -3,15 +3,11 @@
 This is a build plugin for Meteor.js that compiles Sass files using Dart Sass.
 
 > [!IMPORTANT]
-> As of `v5.0.0`, this package **migrated from LibSass to Dart Sass**.
+> As of `v5.0.0`, this package **migrated from LibSass to Dart Sass**, and **no longer declares `sass` as a direct dependency**.
+> This gives you full control to install your preferred `sass` or `sass-embedded` version via `npm`, and aligns with modern Sass best practices.
 > If you are upgrading from an earlier version, please read the [Migration Guide](https://github.com/illusionfield/fourseven-scss/blob/master/MIGRATION-GUIDE-v5.md), as this README does not cover all necessary migration steps.
 
-## What's New in `v5.1.0`
-
-> [!NOTE]
-> Starting from `v5.1.0`, this package **no longer declares **``** as a direct dependency**. This gives you the freedom to install your preferred `sass` or `sass-embedded` version via `npm`.
-
-For example:
+To install manually:
 
 ```sh
 meteor npm install --save-dev sass
@@ -183,7 +179,7 @@ For details, refer to the [Meteor CSS minifier docs](https://docs.meteor.com/pac
 
 ## Using `sass-embedded` (Optional)
 
-From `v5.1.0`, you may use [`sass-embedded`](https://www.npmjs.com/package/sass-embedded`) for faster builds.
+From `v5.0.0`, you may use [`sass-embedded`](https://www.npmjs.com/package/sass-embedded`) for faster builds.
 
 ### Benefits
 

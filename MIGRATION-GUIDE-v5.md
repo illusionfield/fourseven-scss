@@ -1,6 +1,6 @@
 # Meteor SCSS Migration Guide v5
 
-The latest version of the `fourseven:scss` package includes significant changes compared to the previous node-sass implementation.
+The latest version of the `fourseven:scss` package includes significant changes compared to the previous `node-sass` implementation.
 It now uses Dart Sass for compilation, which is modern, faster, and officially supported by the Sass community.
 This guide provides a step-by-step process to help developers transition smoothly to the new version.
 
@@ -10,13 +10,15 @@ This guide provides a step-by-step process to help developers transition smoothl
 - Dart Sass is the official Sass implementation that supports the latest standards and features.
 - Meteor 3 compatibility requires modern packages.
 - This transition ensures **better compatibility and long-term maintainability**.
+- As of `v5.0.0`, the `sass` dependency is no longer bundled — you must manually install `sass` or `sass-embedded` via `npm`.
 
 ## Table of contents
 
-- Step 1: [Update the fourseven:scss package](#update-the-foursevenscss-package)
-- Step 2: [Install and use NPM packages for autoprefixing](#installing-and-configuring-new-autoprefixer)
-- Step 3: [Change @imports to @use and @forward](#change-imports-to-use-and-forward)
-- Step 4: [Update configuration file](#update-configuration-file)
+- Step 1: [Update the fourseven\:scss package](#update-the-foursevenscss-package)
+- Step 2: [Install `sass` or `sass-embedded`](#install-sass-or-sass-embedded)
+- Step 3: [Install and use NPM packages for autoprefixing](#installing-and-configuring-new-autoprefixer)
+- Step 4: [Change @imports to @use and @forward](#change-imports-to-use-and-forward)
+- Step 5: [Update configuration file](#update-configuration-file)
 
 ## Migration steps
 
@@ -32,6 +34,23 @@ meteor update fourseven:scss
 ```
 
 This automatically switches to the Dart Sass-based compiler.
+
+### Install `sass` or `sass-embedded`
+
+Since `fourseven:scss@5.0.0` no longer declares a built-in Sass compiler, you must install one manually:
+
+```sh
+meteor npm install --save-dev sass
+```
+
+Or for improved performance:
+
+```sh
+meteor npm install --save-dev sass-embedded
+```
+
+> [!TIP]
+> You can now pin versions or switch implementations without modifying the package itself.
 
 ### Installing and configuring new autoprefixer
 
@@ -202,23 +221,24 @@ This can be helpful for troubleshooting issues during compilation.
 
 ## Summary
 
-| **Change**             | **Old (`node-sass`)**                   | **New (`Dart Sass`)**                    |
-| ---------------------- | --------------------------------------- | ---------------------------------------- |
-| Sass Compiler          | `node-sass` (LibSass)                   | `dart-sass`                              |
-| Minimum Meteor Version | 1.6+                                    | 2.10+ (Full Meteor 3 support)            |
-| Import Syntax          | `@import`                               | `@use` and `@forward`                    |
-| Module Import          | `@import "{}/node_modules/module-name"` | `@use "~module-name"`                    |
-| Meteor Package Import  | `@import "{package}/styles"`            | `@use "meteor:{package}/styles"`         |
-| Variable & Mixin Usage | Direct variable access                  | Prefix required (using `as *` or `as v`) |
-| CSS Minification       | `seba:minifiers-autoprefixer`           | `standard-minifier-css`                  |
-| Indented Syntax        | No import support                       | Fully supported                          |
-| Config File Name       | `scss-config.json`                      | `.scss.config.json`                      |
-| Debug Mode             | Not available                           | Enabled via environment variable         |
+| **Change**             | **Old (`node-sass`)**              | **New (`Dart Sass`)**                  |
+| ---------------------- | ---------------------------------- | -------------------------------------- |
+| Sass Compiler          | `node-sass` (LibSass)              | `dart-sass`                            |
+| Minimum Meteor Version | 1.6+                               | 2.10+ (Full Meteor 3 support)          |
+| Import Syntax          | `@import`                          | `@use` and `@forward`                  |
+| Module Import          | `@import "{}/node_modules/module"` | `@use "~module"`                       |
+| Meteor Package Import  | `@import "{package}/styles"`       | `@use "meteor:{package}/styles"`       |
+| Variable & Mixin Usage | Direct access                      | Prefix required (e.g., `as *`, `as x`) |
+| CSS Minification       | `seba:minifiers-autoprefixer`      | `standard-minifier-css`                |
+| Indented Syntax        | No import support                  | Fully supported                        |
+| Config File Name       | `scss-config.json`                 | `.scss.config.json`                    |
+| Debug Mode             | Not available                      | Enabled via environment variable       |
+| Sass Dependency        | Bundled `sass`                     | User-installed via `npm`               |
 
 This guide helps developers transition to the Dart Sass-based `fourseven:scss` package.
 
-In the future updates, primarily focuses on ensuring compatibility with Meteor 3 and modern Sass features.
-However, we aim to support `Meteor 2` as long as feasible. This version is compatible with `Meteor 2.10` and later releases.
+Future updates will primarily focus on ensuring compatibility with Meteor 3 and modern Sass features.
+However, we aim to support `Meteor 2` as long as feasible. This version is compatible with `Meteor 2.10` and later.
 
 ## Further reading
 
