@@ -1,6 +1,6 @@
 Package.describe({
   name: 'fourseven:scss',
-  version: '5.0.0-beta.1',
+  version: '5.0.0-rc.1',
   summary: 'Style with attitude. Sass and SCSS support for Meteor.js.',
   git: 'https://github.com/Meteor-Community-Packages/meteor-scss.git',
   documentation: 'README.md'
@@ -16,7 +16,7 @@ Package.registerBuildPlugin({
 });
 
 Package.onUse(api => {
-  api.versionsFrom(['2.10.0', '3.0.1']);
+  api.versionsFrom(['2.10.0', '3.0.1', '3.3.2']);
   api.use('isobuild:compiler-plugin@1.0.0');
 });
 
