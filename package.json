@@ -7,6 +7,6 @@
   },
   "devDependencies": {
     "@zodern/mtest": "^0.5.1",
-    "sass": "1.92.1"
+    "sass": "^1.93.2"
   }
 }

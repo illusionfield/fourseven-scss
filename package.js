@@ -21,7 +21,7 @@ Package.onUse(api => {
 });
 
 Package.onTest(api => {
-  api.versionsFrom(['2.10.0', '3.0.1']);
+  api.versionsFrom(['2.10.0', '3.0.1', '3.3.2']);
   api.use([
     'tinytest',
     'ecmascript',
