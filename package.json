@@ -6,7 +6,7 @@
     "test:browser": "meteor test-packages ./ --port 8888"
   },
   "devDependencies": {
-    "@illusionfield/mtest": "^0.5.0",
+    "@illusionfield/mtest": "^0.6.0",
     "sass": "^1.93.2"
   }
 }
