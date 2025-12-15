@@ -1,0 +1,10 @@
+.github
+.gitignore
+.npm
+.DS_Store
+ISSUE_TEMPLATE.md
+LICENSE.txt
+MIGRATION-GUIDE*.md
+README.md
+package-lock.json
+package.json

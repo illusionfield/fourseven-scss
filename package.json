@@ -1,0 +1,12 @@
+{
+  "name": "fourseven-scss",
+  "scripts": {
+    "test:once": "mtest --package ./ --port=8888 --once --verbose=0",
+    "test:watch": "mtest --package ./ --port=8888 --verbose=1",
+    "test:browser": "meteor test-packages ./ --port 8888"
+  },
+  "devDependencies": {
+    "@illusionfield/mtest": "^0.6.0",
+    "sass": "^1.93.2"
+  }
+}

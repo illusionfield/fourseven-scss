@@ -1,7 +1,5 @@
 import { MultiFileCachingCompiler } from 'meteor/caching-compiler';
 
-import sass from 'sass';
-
 import { pathToFileURL } from 'url';
 const { fs, path } = Plugin;
 
@@ -12,6 +10,106 @@ const userOptions = _getConfig(
   '.scss.config.json',
   'scss-config.json', // legacy
 );
+
+let includePaths = [];
+if('object' === typeof userOptions) {
+  if(Array.isArray(userOptions.includePaths)) {
+    includePaths = userOptions.includePaths;
+  }
+  delete userOptions.includePaths;
+}
+
+/**
+ * Determines the appropriate require function based on the current execution context.
+ *
+ * In test environments (when global.testCommandMetadata is truthy),
+ * a custom require function produced by requireFromCwdFactory() is used. This ensures that
+ * dependencies—such as the Sass compiler—are loaded from the project's node_modules directory
+ * rather than from the package/plugin directory. This is necessary because during testing,
+ * the package might not bundle its own dependencies, and using the project's node_modules
+ * avoids module resolution issues.
+ *
+ * In non-test environments, the standard Node.js require function is used.
+ */
+let requireFn;
+const isTest = !!global.testCommandMetadata;
+if(isTest) {
+  requireFn = requireFromCwdFactory();
+} else {
+  requireFn = require;
+}
+
+function getSass() {
+  const currentNode = process.version.slice(1);
+
+  let sass;
+  let sassType;
+  let isErr = false;
+  let requiredNode;
+
+  try {
+    const _sassType = 'sass';
+    requiredNode = getNodeEngineRequirement(_sassType);
+    sassType = _sassType;
+    sass = requireFn(_sassType);
+  } catch(e) {
+    if(debugMode) {
+      console.error(`${e}`);
+    }
+    isErr = true;
+  }
+  if(isErr) {
+    try {
+      isErr = false;
+      const _sassType = 'sass-embedded';
+      requiredNode = getNodeEngineRequirement(_sassType);
+      sassType = _sassType;
+      sass = requireFn(_sassType);
+    } catch(e) {
+      if(debugMode) {
+        console.error(`${e}`);
+      }
+      isErr = true;
+    }
+  }
+
+  if(requiredNode && !satisfies(requiredNode, currentNode)) {
+    const err = new Error([
+      '','',
+      `🚨 [SASS Compiler] Unsupported Node.js version!`,
+      `   Required: ${requiredNode}`,
+      `   Current:  ${currentNode}`,
+      `   Compiler: ${sassType}`,
+      `Please switch to a compatible Compiler version.`,
+      '',
+    ].join('\n'));
+
+    return [err, null];
+  }
+
+  if(isErr) {
+    const err = new Error([
+      '',
+      `The sass npm package could not be found in your node_modules`,
+      'directory. Please run the following command to install it:',
+      '',
+      '    meteor npm install --save-dev sass',
+      'or',
+      '    meteor npm install --save-dev sass-embedded',
+      '',
+    ].join('\n'));
+
+    return [err, null];
+  }
+
+  if(debugMode) {
+    console.log(`[SASS Compiler] ${sassType} selected - Node.js version ${currentNode} satisfies the required version constraint (${requiredNode}).`);
+  }
+
+  return [null, sass];
+}
+
+const [missingSassError, sass] = getSass();
 
 Plugin.registerCompiler({
   extensions: ['scss', 'sass'],
@@ -43,7 +141,6 @@ class SassCompiler extends MultiFileCachingCompiler {
     }
     const pathInPackage = inputFile.getPathInPackage();
     const isPartial = hasUnderscore(pathInPackage);
-
     return !isPartial;
   }
 
@@ -64,7 +161,8 @@ class SassCompiler extends MultiFileCachingCompiler {
     const allFilesByPath = new Map();
     for(const [absoluteImportPath, file] of allFiles.entries()) {
       const absolutePath = path.join(file.getSourceRoot(), file.getPathInPackage());
-      allFilesByPath.set(absolutePath, absoluteImportPath);
+      const convertedAbsolutePath = Plugin.convertToOSPath(absolutePath);
+      allFilesByPath.set(convertedAbsolutePath, absoluteImportPath);
     }
 
     const getRealImportPath = (url) => {
@@ -142,8 +240,21 @@ class SassCompiler extends MultiFileCachingCompiler {
 
       const importPath = getRealImportPath(url);
       if(importPath) {
-        return pathToFileURL(importPath);
+        const convertedImportPath = Plugin.convertToOSPath(importPath);
+        return pathToFileURL(convertedImportPath);
       }
+
+      // Try include paths if not found
+      for(const includePath of includePaths) {
+        const basename = decodeURIComponent(url);
+        const extendedPath = path.join(includePath, basename);
+        const importPath = getRealImportPath(extendedPath);
+        if(importPath) {
+          const convertedImportPath = Plugin.convertToOSPath(importPath);
+          return pathToFileURL(convertedImportPath);
+        }
+      }
+
       return null;
     }
 
@@ -180,7 +291,15 @@ class SassCompiler extends MultiFileCachingCompiler {
     // Compile
     let output;
     try {
-      output = await sass.compileAsync(inputFile.getPathInPackage(), options);
+      if(missingSassError) {
+        throw missingSassError;
+      }
+      let filePath = inputFile.getPathInPackage();
+      if(inputFile.getPackageName()) {
+        filePath = `${inputFile.getSourceRoot()}/${filePath}`;
+      }
+      const convertedFilePath = Plugin.convertToOSPath(filePath);
+      output = await sass.compileAsync(convertedFilePath, options);
     } catch(e) {
       inputFile.error({
         message: `Scss compiler ${e}\n`,
@@ -197,7 +316,9 @@ class SassCompiler extends MultiFileCachingCompiler {
     if(output?.loadedUrls && output.loadedUrls.length > 0) {
       const skippedImportPaths = [];
       for(const loadedUrl of output.loadedUrls) {
-        const referencedImportPath = allFilesByPath.get(loadedUrl.pathname);
+        const filePath = decodeURIComponent(convertToStandardPath(loadedUrl.pathname));
+        const convertedFilePath = Plugin.convertToOSPath(filePath);
+        const referencedImportPath = allFilesByPath.get(convertedFilePath);
         if(referencedImportPath) {
           referencedImportPaths.push(referencedImportPath);
         } else {
@@ -224,14 +345,15 @@ class SassCompiler extends MultiFileCachingCompiler {
         }
         switch(url?.protocol) {
           case 'file:':
-            let srcPath = url.pathname.replace(new RegExp(`^${sourceRoot}/?`), '');
-
-            // this is an attempt at standard-minifier-css compatibility
-            //srcPath = (`app/${srcPath}`).replace('app//', 'app/');
-            //srcPath = path.normalize(`${entryFileDisplayPath.replace(/\//g,'-')}/${srcPath}`);
-            srcPath = path.normalize(`${entryFileDisplayPath}/${srcPath}`);
-
-            return srcPath;
+            const filePath = convertToStandardPath(url.pathname);
+            let srcPath = filePath.replace(new RegExp(`^${sourceRoot}/?`), '');
+            srcPath = convertToStandardPath(srcPath);
+            const fullPath = `${entryFileDisplayPath}/${srcPath}`
+            try {
+              return path.normalize(fullPath);
+            } catch(e) {
+              return fullPath;
+            }
           default:
             return src;
         }
@@ -266,7 +388,6 @@ function _getConfig(...configFileNames) {
     if(fileExists(configPath)) {
       try {
         return JSON.parse(fs.readFileSync(configPath, {encoding: 'utf8'}));
-        break;
       } catch(e) {
         console.warn(`[ SASS Compiler ] Custom config ignored (${configFileName}):\n - ${e}`);
         if(debugMode) {
@@ -293,4 +414,57 @@ function fileExists(file) {
   } else if(fs.existsSync) {
     return fs.existsSync(file);
   }
+}
+
+function requireFromCwdFactory() {
+  const { createRequire } = require('module');
+  return createRequire(path.join(process.cwd(), 'noop.js'));
+}
+
+function getNodeEngineRequirement(pkgName) {
+  const pkgPath = path.join(process.cwd(), 'node_modules', pkgName, 'package.json');
+  if(!fileExists(pkgPath)) {
+    throw new Error(`Package ${pkgName} not found in node_modules`);
+  }
+  const pkgJson = JSON.parse(fs.readFileSync(pkgPath, 'utf-8'));
+  return pkgJson.engines?.node || null;
+}
+
+function convertToStandardPath(osPath) {
+  if(process.platform === "win32") {
+    return osPath.split(':').join('');
+  }
+  return osPath;
+}
+
+function satisfies(minVersion, currentVersion) {
+  if(minVersion.startsWith('>=')) {
+    return versionCompare(currentVersion, minVersion.slice(2)) >= 0;
+  } else if(minVersion.startsWith('>')) {
+    return versionCompare(currentVersion, minVersion.slice(1)) > 0;
+  } else if(minVersion.startsWith('<=')) {
+    return versionCompare(currentVersion, minVersion.slice(2)) <= 0;
+  } else if(minVersion.startsWith('<')) {
+    return versionCompare(currentVersion, minVersion.slice(1)) < 0;
+  } else if(minVersion.startsWith('=')) {
+    return versionCompare(currentVersion, minVersion.slice(1)) === 0;
+  } else {
+    // implicit "="
+    return versionCompare(currentVersion, minVersion) === 0;
+  }
+}
+
+function versionCompare(v1, v2) {
+  const toNum = v => v.split('.').map(Number);
+  const [a1, a2] = [toNum(v1), toNum(v2)];
+  const len = Math.max(a1.length, a2.length);
+
+  for(let i = 0; i < len; i++) {
+    const num1 = a1[i] ?? 0;
+    const num2 = a2[i] ?? 0;
+
+    if(num1 > num2) return 1;
+    if(num1 < num2) return -1;
+  }
+  return 0;
 }

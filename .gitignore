@@ -63,3 +63,5 @@ $RECYCLE.BIN/
 meteor/
 .build*
 .npm
+.meteor
+package-lock.json
